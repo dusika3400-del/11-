@@ -1,110 +1,46 @@
 import math
-
-"""
-МОДУЛЬ ВЫЧИСЛЕНИЯ РАССТОЯНИЙ
-Содержит функции для работы с геометрическими расстояниями
-
-Функции:
-- calc_dist(p1, p2) -> float
-  Вычисляет евклидово расстояние между двумя точками
-  
-- find_closest(target, points) -> tuple или None
-  Находит ближайшую точку к заданной
-  Возвращает None если точек меньше 2
-"""
-"""
-Модуль для вычисления геометрических расстояний между точками.
-
-Этот модуль предоставляет функции для работы с евклидовыми расстояниями
-в двумерном пространстве. Используется как вспомогательный модуль
-в основном проекте обработки точек.
-
-"""
-
-import math
+from exceptions import DistanceCalculationException, InsufficientPointsException
 
 
 def calc_dist(p1, p2):
     """
     Вычисляет евклидово расстояние между двумя точками.
     
-    Формула: sqrt((x2 - x1)² + (y2 - y1)²)
-    
-    Parameters
-    ----------
-    p1 : tuple
-        Первая точка в формате (x, y)
-    p2 : tuple
-        Вторая точка в формате (x, y)
-    
-    Returns
-    -------
-    float
-        Расстояние между точками
-    
-    Examples
-    --------
-    >>> calc_dist((0, 0), (3, 4))
-    5.0
-    >>> calc_dist((1, 1), (4, 5))
-    5.0
-    
-    Notes
-    -----
-    Для повышения производительности при работе с большими объемами данных
-    рекомендуется использовать специализированные библиотеки (numpy).
+    Raises
+    ------
+    DistanceCalculationException
+        Если произошла ошибка при вычислении
     """
-    x1, y1 = p1
-    x2, y2 = p2
-    return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+    try:
+        x1, y1 = p1
+        x2, y2 = p2
+        return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+    except (TypeError, ValueError) as e:
+        raise DistanceCalculationException(p1, p2) from e
 
 
 def find_closest(target, points):
     """
     Находит ближайшую точку к заданной среди списка точек.
     
-    Алгоритм проходит по всем точкам в списке (кроме самой target)
-    и находит точку с минимальным расстоянием.
-    
-    Parameters
-    ----------
-    target : tuple
-        Целевая точка, для которой ищем ближайшую
-    points : list
-        Список точек в формате [(x1, y1), (x2, y2), ...]
-    
-    Returns
-    -------
-    tuple or None
-        Ближайшая точка или None, если точек недостаточно
-    
     Raises
     ------
-    ValueError
-        Если target не входит в список points (логическая ошибка)
-    
-    Examples
-    --------
-    >>> find_closest((0, 0), [(2, 0), (5, 5), (1, 1)])
-    (1, 1)
-    >>> find_closest((1, 1), [(1, 1)])
-    None
-    
-    Note
-    ----
-    Временная сложность: O(n), где n - количество точек
-    Если требуется многократный поиск ближайших точек, 
-    рассмотрите использование kd-деревьев.
+    InsufficientPointsException
+        Если точек недостаточно
     """
     if len(points) <= 1:
-        return None
+        raise InsufficientPointsException(actual=len(points))
     
-    # Убираем саму точку из списка
-    other_points = [p for p in points if p != target]
-   
-    if not other_points:
-        return None
+    try:
+        # Убираем саму точку из списка
+        other_points = [p for p in points if p != target]
+        
+        if not other_points:
+            return None
+        
+        # Ищем точку с минимальным расстоянием
+        closest = min(other_points, key=lambda p: calc_dist(target, p))
+        return closest
     
-    # Ищем точку с минимальным расстоянием
-    closest = min(other_points, key=lambda p: calc_dist(target, p))
-    return closest
+    except ValueError as e:
+        raise InsufficientPointsException(actual=len(points)) from e

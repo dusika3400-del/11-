@@ -25,3 +25,19 @@
 2025-12-24 20:17:21 - points_processor - INFO - ПОЛЬЗОВАТЕЛЬ: Выбор в главном меню: 6
 2025-12-24 20:17:21 - points_processor - INFO - ПОЛЬЗОВАТЕЛЬ: Выход из программы
 2025-12-24 20:17:21 - points_processor - INFO - Программа завершена
+2025-12-24 20:41:57 - points_processor - INFO - Логирование настроено с уровнем INFO
+2025-12-24 20:41:57 - points_processor - INFO - ФУНКЦИЯ: main()
+2025-12-24 20:41:57 - points_processor - INFO - ПОЛЬЗОВАТЕЛЬ: Показано главное меню
+2025-12-24 21:06:30 - points_processor - INFO - ПОЛЬЗОВАТЕЛЬ: Выбор в главном меню: & C:/Users/user/AppData/Local/Programs/Python/Python313/python.exe c:/Users/user/Desktop/11/main.py
+2025-12-24 21:06:30 - points_processor - ERROR - Некорректный выбор в меню: Некорректный выбор: '& C:/Users/user/AppData/Local/Programs/Python/Python313/python.exe c:/Users/user/Desktop/11/main.py'. Допустимые значения: ['1', '2', '3', '4', '5', '6']
+Traceback (most recent call last):
+  File "c:\Users\user\Desktop\11\main.py", line 510, in main
+exceptions.InvalidMenuChoiceException: Некорректный выбор: '& C:/Users/user/AppData/Local/Programs/Python/Python313/python.exe c:/Users/user/Desktop/11/main.py'. Допустимые значения: ['1', '2', '3', '4', '5', '6']
+2025-12-24 21:06:30 - points_processor - INFO - ПОЛЬЗОВАТЕЛЬ: Показано главное меню
+2025-12-24 21:07:18 - points_processor - INFO - ПОЛЬЗОВАТЕЛЬ: Выбор в главном меню: 4
+2025-12-24 21:07:18 - points_processor - INFO - ПОЛЬЗОВАТЕЛЬ: Запущено сравнение методов
+2025-12-24 21:07:18 - points_processor - INFO - ФУНКЦИЯ: compare_methods()
+2025-12-24 21:07:18 - points_processor - INFO - ПОЛЬЗОВАТЕЛЬ: Показано главное меню
+2025-12-24 21:07:43 - points_processor - INFO - ПОЛЬЗОВАТЕЛЬ: Выбор в главном меню: 6
+2025-12-24 21:07:43 - points_processor - INFO - ПОЛЬЗОВАТЕЛЬ: Выход из программы
+2025-12-24 21:07:43 - points_processor - INFO - Программа завершена

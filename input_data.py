@@ -1,37 +1,22 @@
-"""
-Модуль для ввода данных в программу обработки точек.
-
-Предоставляет функции для интерактивного ввода с клавиатуры
-и генерации случайных данных для тестирования.
-"""
-
 import random
+from exceptions import InvalidInputFormatException, InvalidNumberException
 
 
 def input_by_hand():
     """
     Интерактивный ввод точек с клавиатуры.
     
-    Запрашивает у пользователя ввод координат точек в формате "x,y".
-    Поддерживает завершение ввода по командам 'стоп' или 'stop'.
-    
     Returns
     -------
     list
-        Список введенных точек в формате [(x1, y1), (x2, y2), ...]
+        Список точек
     
-    Examples
-    --------
-    >>> # При запуске функции и вводе:
-    >>> # Точка 1: 1,2
-    >>> # Точка 2: 3.5,4.1
-    >>> # Точка 3: стоп
-    >>> # Функция вернет: [(1.0, 2.0), (3.5, 4.1)]
-    
-    Notes
-    -----
-    Функция использует float для хранения координат, что позволяет
-    работать с вещественными числами.
+    Raises
+    ------
+    InvalidInputFormatException
+        Если формат ввода некорректен
+    InvalidNumberException
+        Если введено некорректное число
     """
     points = []
     print("\n=== Ручной ввод ===")
@@ -40,24 +25,35 @@ def input_by_hand():
     
     count = 1
     while True:
-        user = input(f"Точка {count}: ").strip()
-        
-        if user.lower() in ['стоп', 'stop', '']:
-            break
-        
         try:
+            user = input(f"Точка {count}: ").strip()
+            
+            if user.lower() in ['стоп', 'stop', '']:
+                break
+            
             parts = user.split(',')
             if len(parts) != 2:
-                print("Ошибка: нужны 2 числа через запятую")
-                continue
+                raise InvalidInputFormatException(user)
             
-            x = float(parts[0])
-            y = float(parts[1])
+            try:
+                x = float(parts[0])
+            except ValueError:
+                raise InvalidNumberException(parts[0], "координата X")
+            
+            try:
+                y = float(parts[1])
+            except ValueError:
+                raise InvalidNumberException(parts[1], "координата Y")
+            
             points.append((x, y))
             count += 1
-            
-        except ValueError:
-            print("Ошибка: введите корректные числа!")
+        
+        except (InvalidInputFormatException, InvalidNumberException) as e:
+            print(f"Ошибка: {e}")
+            continue
+        except Exception as e:
+            print(f"Неожиданная ошибка: {e}")
+            continue
     
     print(f"Введено точек: {len(points)}")
     return points
@@ -69,25 +65,22 @@ def make_random_points(n=5):
     
     Parameters
     ----------
-    n : int, optional
-        Количество генерируемых точек, по умолчанию 5
+    n : int
+        Количество точек
     
     Returns
     -------
     list
-        Список случайных точек в диапазоне [-10, 10]
+        Список точек
     
-    Examples
-    --------
-    >>> make_random_points(3)
-    Создано 3 случайных точек
-    [(-3, 7), (5, -2), (0, 9)]
-    
-    Note
-    ----
-    Для воспроизводимости результатов рекомендуется установить
-    random.seed() перед вызовом функции.
+    Raises
+    ------
+    InvalidNumberException
+        Если количество точек некорректно
     """
+    if n <= 0:
+        raise InvalidNumberException(n, "количество точек")
+    
     points = []
     for i in range(n):
         x = random.randint(-10, 10)
