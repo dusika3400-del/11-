@@ -1,534 +1,434 @@
 """
 Главный модуль программы "Обработка точек" с улучшенной обработкой исключений.
-
-Использует кастомные исключения и логирование по принципам из PDF-файлов:
-1. Конкретные исключения вместо общих
-2. Логирование через logger.exception()
-3. Правильный повторный вызов исключений
-4. Принцип Tell-Don't-Ask
+Все в одном файле для простоты.
 """
 
 import logging
+import math
+import random
 import sys
-from distance import calc_dist, find_closest
-from points import add_two_points, process_points
-from input_data import input_by_hand, make_random_points
-from exceptions import (
-    InvalidMenuChoiceException, 
-    InvalidMethodException,
-    InvalidLoggingLevelException,
-    EmptyPointsListException,
-    PointsProcessorException
-)
 
 
-# ========== КОНФИГУРАЦИЯ ЛОГИРОВАНИЯ ==========
+# ========== КАСТОМНЫЕ ИСКЛЮЧЕНИЯ ==========
+class PointsException(Exception):
+    """Базовое исключение для всех ошибок."""
+    pass
 
-def setup_logging(level=logging.INFO):
-    """
-    Настраивает систему логирования для проекта.
+
+class InputError(PointsException):
+    """Ошибки ввода."""
+    pass
+
+
+class ProcessingError(PointsException):
+    """Ошибки обработки."""
+    pass
+
+
+# ========== ТЕКСТОВЫЕ СООБЩЕНИЯ (для локализации) ==========
+TEXTS = {
+    # Меню
+    "menu_title": "ГЛАВНОЕ МЕНЮ",
+    "menu_options": [
+        "Тест всех функций",
+        "Обработать точки (ручной ввод)",
+        "Обработать точки (случайные)",
+        "Сравнить все методы",
+        "Управление логированием",
+        "Выход"
+    ],
     
-    Parameters
-    ----------
-    level : int, optional
-        Уровень логирования (по умолчанию INFO)
+    # Методы
+    "method_title": "Выберите метод обработки:",
+    "methods": [
+        "Оригинальный (ближайшая по расстоянию)",
+        "Последовательный (следующая точка)",
+        "Минимальная сумма координат",
+        "Минимальная координата X"
+    ],
     
-    Returns
-    -------
-    logging.Logger
-        Сконфигурированный логгер
+    # Ввод
+    "input_title": "Ручной ввод",
+    "input_format": "Формат: x,y (например: 3,4)",
+    "input_exit": "Для выхода введите 'стоп'",
+    "input_prompt": "Точка {count}: ",
     
-    Raises
-    ------
-    InvalidLoggingLevelException
-        Если уровень логирования некорректен
-    """
+    # Ошибки
+    "errors": {
+        "invalid_format": "Некорректный формат: '{input}'. Нужно: x,y",
+        "invalid_number": "Не число: '{value}'",
+        "empty_list": "Нет точек для обработки",
+        "invalid_choice": "Некорректный выбор: '{choice}'",
+        "invalid_method": "Неизвестный метод: '{method}'"
+    },
+    
+    # Логирование
+    "logging_menu": [
+        "INFO - все действия",
+        "WARNING - только предупреждения",
+        "ERROR - только ошибки",
+        "CRITICAL - почти ничего",
+        "Показать текущий уровень"
+    ]
+}
+
+
+# ========== ОСНОВНЫЕ ФУНКЦИИ ==========
+def calc_dist(p1, p2):
+    """Вычисляет расстояние между точками."""
     try:
-        logger = logging.getLogger('points_processor')
-        logger.setLevel(level)
-        
-        # Очищаем предыдущие обработчики
-        if logger.handlers:
-            logger.handlers.clear()
-        
-        # Форматтер для логов
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        
-        # Обработчик для файла
-        file_handler = logging.FileHandler('app.log', encoding='utf-8', mode='a')
-        file_handler.setFormatter(formatter)
-        file_handler.setLevel(level)
-        
-        # Обработчик для консоли
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        console_handler.setLevel(level)
-        
-        # Добавляем обработчики
-        logger.addHandler(file_handler)
-        logger.addHandler(console_handler)
-        
-        logger.info(f"Логирование настроено с уровнем {logging.getLevelName(level)}")
-        
-        return logger
+        x1, y1 = p1
+        x2, y2 = p2
+        return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+    except (TypeError, ValueError) as e:
+        raise ProcessingError(f"Ошибка расстояния: {p1} - {p2}") from e
+
+
+def find_closest(target, points):
+    """Находит ближайшую точку."""
+    if len(points) <= 1:
+        return None
     
-    except ValueError as e:
-        raise InvalidLoggingLevelException(str(e)) from e
+    try:
+        other_points = [p for p in points if p != target]
+        if not other_points:
+            return None
+        return min(other_points, key=lambda p: calc_dist(target, p))
+    except Exception as e:
+        raise ProcessingError(f"Ошибка поиска ближайшей") from e
 
 
-def log_user_action(action):
-    """
-    Логирует действие пользователя.
+def add_points(p1, p2):
+    """Складывает две точки."""
+    try:
+        return (p1[0] + p2[0], p1[1] + p2[1])
+    except (TypeError, IndexError) as e:
+        raise ProcessingError(f"Ошибка сложения: {p1} + {p2}") from e
+
+
+def process_points(points, method):
+    """Обрабатывает точки выбранным методом."""
+    if not points:
+        raise ProcessingError(TEXTS["errors"]["empty_list"])
     
-    Parameters
-    ----------
-    action : str
-        Описание действия пользователя
-    """
-    logger = logging.getLogger('points_processor')
-    logger.info(f"ПОЛЬЗОВАТЕЛЬ: {action}")
-
-
-def log_function_call(func_name, **kwargs):
-    """
-    Логирует вызов функции.
+    if method == "original":
+        # Ближайшая по расстоянию
+        result = []
+        for p in points:
+            closest = find_closest(p, points)
+            result.append(add_points(p, closest) if closest else p)
+        return result
     
-    Parameters
-    ----------
-    func_name : str
-        Имя функции
-    **kwargs : dict
-        Аргументы функции
-    """
-    logger = logging.getLogger('points_processor')
+    elif method == "sequential":
+        # Следующая точка
+        result = []
+        n = len(points)
+        for i in range(n):
+            next_point = points[(i + 1) % n]
+            result.append(add_points(points[i], next_point))
+        return result
     
-    # Формируем строку с аргументами
-    args_str = ''
-    if kwargs:
-        args_list = []
-        for k, v in kwargs.items():
-            if isinstance(v, list) and len(v) > 3:
-                args_list.append(f"{k}=[...]({len(v)} точек)")
-            else:
-                args_list.append(f"{k}={v}")
-        args_str = ', '.join(args_list)
+    elif method == "min_sum":
+        # Минимальная сумма координат
+        special = min(points, key=lambda p: p[0] + p[1])
+        return [add_points(p, special) for p in points]
     
-    logger.info(f"ФУНКЦИЯ: {func_name}({args_str})")
+    elif method == "min_x":
+        # Минимальная координата X
+        special = min(points, key=lambda p: p[0])
+        return [add_points(p, special) for p in points]
+    
+    else:
+        raise ProcessingError(TEXTS["errors"]["invalid_method"].format(method=method))
 
 
-# Инициализация логгера
-try:
-    logger = setup_logging(logging.INFO)
-except InvalidLoggingLevelException as e:
-    print(f"Ошибка настройки логирования: {e}")
-    sys.exit(1)
+# ========== ВВОД ДАННЫХ ==========
+def input_points_manual():
+    """Ручной ввод точек."""
+    points = []
+    print(f"\n=== {TEXTS['input_title']} ===")
+    print(TEXTS["input_format"])
+    print(TEXTS["input_exit"])
+    
+    count = 1
+    while True:
+        try:
+            user = input(TEXTS["input_prompt"].format(count=count)).strip()
+            
+            if user.lower() in ['стоп', 'stop', '']:
+                break
+            
+            # Простая валидация
+            if ',' not in user:
+                raise InputError(TEXTS["errors"]["invalid_format"].format(input=user))
+            
+            x_str, y_str = user.split(',', 1)
+            
+            try:
+                x = float(x_str.strip())
+            except ValueError:
+                raise InputError(TEXTS["errors"]["invalid_number"].format(value=x_str))
+            
+            try:
+                y = float(y_str.strip())
+            except ValueError:
+                raise InputError(TEXTS["errors"]["invalid_number"].format(value=y_str))
+            
+            points.append((x, y))
+            count += 1
+            
+        except InputError as e:
+            print(f"Ошибка: {e}")
+            continue
+        except Exception as e:
+            print(f"Неожиданная ошибка: {e}")
+            continue
+    
+    print(f"Введено точек: {len(points)}")
+    return points
 
 
-# ========== ОСНОВНЫЕ ФУНКЦИИ С ОБРАБОТКОЙ ИСКЛЮЧЕНИЙ ==========
+def make_random_points(n=5):
+    """Создает случайные точки."""
+    points = []
+    for _ in range(n):
+        x = random.randint(-10, 10)
+        y = random.randint(-10, 10)
+        points.append((x, y))
+    
+    print(f"Создано {n} случайных точек")
+    return points
 
+
+# ========== ЛОГИРОВАНИЕ ==========
+def setup_logging(level=logging.INFO):
+    """Настраивает логирование."""
+    logger = logging.getLogger('points_app')
+    logger.setLevel(level)
+    
+    # Очистка старых обработчиков
+    if logger.handlers:
+        logger.handlers.clear()
+    
+    # Форматтер
+    formatter = logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%H:%M:%S'
+    )
+    
+    # Файл
+    file_handler = logging.FileHandler('app.log', encoding='utf-8', mode='a')
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(level)
+    
+    # Консоль
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(level)
+    
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    logger.info(f"Логирование запущено (уровень: {logging.getLevelName(level)})")
+    return logger
+
+
+# ========== ОСНОВНОЙ КОД ==========
 def show_menu():
-    """
-    Отображает главное меню программы.
-    
-    Returns
-    -------
-    None
-    """
-    log_user_action("Показано главное меню")
+    """Показывает главное меню."""
     print("\n" + "="*50)
-    print("ГЛАВНОЕ МЕНЮ")
+    print(TEXTS["menu_title"])
     print("="*50)
-    print("1. Тест всех функций (все методы)")
-    print("2. Обработать точки (ручной ввод)")
-    print("3. Обработать точки (случайные)")
-    print("4. Сравнить все методы на примере")
-    print("5. Управление логированием")
-    print("6. Выход")
+    
+    for i, option in enumerate(TEXTS["menu_options"], 1):
+        print(f"{i}. {option}")
 
 
 def choose_method():
-    """
-    Отображает меню выбора метода обработки.
-    
-    Returns
-    -------
-    str
-        Выбор пользователя
-    
-    Raises
-    ------
-    InvalidMenuChoiceException
-        Если выбор некорректен
-    """
-    log_user_action("Показано меню выбора метода")
-    print("\nВыберите метод обработки:")
-    print("1. Оригинальный (ближайшая по расстоянию)")
-    print("2. Последовательный (следующая точка в массиве)")
-    print("3. Минимальная сумма координат (x+y)")
-    print("4. Минимальная координата X")
+    """Выбор метода обработки."""
+    print(f"\n{TEXTS['method_title']}")
+    for i, method in enumerate(TEXTS["methods"], 1):
+        print(f"{i}. {method}")
     
     choice = input("Ваш выбор (1-4): ").strip()
     
-    if choice not in ["1", "2", "3", "4"]:
-        raise InvalidMenuChoiceException(choice, ["1", "2", "3", "4"])
-    
-    return choice
-
-
-def method_name(choice):
-    """
-    Преобразует выбор пользователя в имя метода.
-    
-    Parameters
-    ----------
-    choice : str
-        Выбор пользователя
-    
-    Returns
-    -------
-    str
-        Имя метода
-    
-    Raises
-    ------
-    InvalidMethodException
-        Если метод неизвестен
-    """
-    methods = {
+    methods_map = {
         "1": "original",
         "2": "sequential",
         "3": "min_sum",
         "4": "min_x"
     }
     
-    method = methods.get(choice)
-    if not method:
-        raise InvalidMethodException(choice)
+    if choice not in methods_map:
+        raise InputError(TEXTS["errors"]["invalid_choice"].format(choice=choice))
     
-    return method
+    return methods_map[choice]
 
 
-def test_all():
-    """
-    Выполняет комплексное тестирование всех функций проекта.
-    """
-    log_user_action("Запущено тестирование всех функций")
-    log_function_call("test_all")
+def test_all(logger):
+    """Тестирует все функции."""
+    logger.info("Запуск тестов")
     
-    print("\n=== Тест всех функций ===")
+    print("\n=== Тест функций ===")
     
-    try:
-        # Тест расстояния
-        d = calc_dist((0, 0), (3, 4))
-        print(f"1. calc_dist: {d:.1f} (должно быть 5.0)")
-        logger.debug(f"Тест calc_dist: результат={d}")
-        
-        # Тест ближайшей точки
-        pts = [(0, 0), (2, 0), (5, 5)]
-        c = find_closest((0, 0), pts)
-        print(f"2. find_closest: {c} (должно быть (2, 0))")
-        logger.debug(f"Тест find_closest: результат={c}")
-        
-        # Тест сложения
-        s = add_two_points((1, 2), (3, 4))
-        print(f"3. add_two_points: {s} (должно быть (4, 6))")
-        logger.debug(f"Тест add_two_points: результат={s}")
-        
-        # Тест всех методов обработки
-        test_points = [(1, 1), (4, 5), (2, 3)]
-        print(f"\nТестовые точки: {test_points}")
-        logger.debug(f"Тестовые точки: {test_points}")
-        
-        methods = [
-            ("Оригинальный", "original"),
-            ("Последовательный", "sequential"),
-            ("Минимальная сумма", "min_sum"),
-            ("Минимальный X", "min_x")
-        ]
-        
-        for name, method in methods:
-            result = process_points(test_points, method)
-            print(f"4. {name}: {result}")
-            logger.debug(f"Тест метода {name}: результат={result}")
+    # Тест расстояния
+    dist = calc_dist((0, 0), (3, 4))
+    print(f"1. Расстояние: {dist:.1f} (должно быть 5.0)")
     
-    except PointsProcessorException as e:
-        logger.exception(f"Ошибка при тестировании: {e}")
-        print(f"Ошибка при тестировании: {e}")
-    except Exception as e:
-        logger.exception(f"Неожиданная ошибка при тестировании: {e}")
-        print(f"Неожиданная ошибка: {e}")
+    # Тест ближайшей
+    points = [(0, 0), (2, 0), (5, 5)]
+    closest = find_closest((0, 0), points)
+    print(f"2. Ближайшая: {closest} (должно быть (2,0))")
+    
+    # Тест сложения
+    sum_pts = add_points((1, 2), (3, 4))
+    print(f"3. Сложение: {sum_pts} (должно быть (4,6))")
+    
+    # Тест методов
+    test_pts = [(1, 1), (4, 5), (2, 3)]
+    print(f"\nТестовые точки: {test_pts}")
+    
+    for method_name in ["original", "sequential", "min_sum", "min_x"]:
+        result = process_points(test_pts, method_name)
+        print(f"4. Метод '{method_name}': {result}")
 
 
-def process_with_method(points, method_choice=None):
-    """
-    Обрабатывает точки выбранным методом.
+def compare_methods(logger):
+    """Сравнивает все методы."""
+    logger.info("Сравнение методов")
     
-    Parameters
-    ----------
-    points : list
-        Список точек
-    method_choice : str, optional
-        Выбор метода
+    print("\n=== Сравнение методов ===")
+    points = [(0, 0), (3, 0), (1, 2), (4, 1)]
+    print(f"Точки: {points}")
     
-    Returns
-    -------
-    list
-        Результат обработки
+    print("\nРезультаты:")
+    print("-" * 40)
     
-    Raises
-    ------
-    EmptyPointsListException
-        Если список точек пуст
-    """
-    if not points:
-        raise EmptyPointsListException()
-    
-    if method_choice is None:
-        method_choice = choose_method()
-    
-    method = method_name(method_choice)
-    
-    log_function_call("process_with_method", 
-                     points_count=len(points),
-                     method=method)
-    
-    try:
-        # Специальная информация для некоторых методов
-        if method == "min_sum":
-            min_point = min(points, key=lambda p: p[0] + p[1])
-            print(f"Минимальная сумма координат у точки: {min_point} (сумма={min_point[0] + min_point[1]})")
-            logger.debug(f"Точка с минимальной суммой: {min_point}")
-        elif method == "min_x":
-            min_point = min(points, key=lambda p: p[0])
-            print(f"Минимальная координата X у точки: {min_point}")
-            logger.debug(f"Точка с минимальным X: {min_point}")
+    for method_name in ["original", "sequential", "min_sum", "min_x"]:
+        print(f"\nМетод: {method_name}")
+        result = process_points(points, method_name)
         
-        result = process_points(points, method)
-        logger.debug(f"Результат обработки: {result}")
-        
-        return result
-    
-    except PointsProcessorException as e:
-        logger.exception(f"Ошибка при обработке точек: {e}")
-        raise
-    except Exception as e:
-        logger.exception(f"Неожиданная ошибка при обработке точек: {e}")
-        raise PointsProcessorException(f"Ошибка обработки: {e}") from e
-
-
-def compare_methods():
-    """
-    Сравнивает все методы обработки на фиксированном наборе точек.
-    """
-    log_user_action("Запущено сравнение методов")
-    log_function_call("compare_methods")
-    
-    print("\n=== Сравнение всех методов ===")
-    
-    try:
-        # Используем фиксированный набор для наглядности
-        points = [(0, 0), (3, 0), (1, 2), (4, 1)]
-        print(f"Точки для сравнения: {points}")
-        logger.debug(f"Точки для сравнения: {points}")
-        
-        print("\nРезультаты:")
-        print("-" * 60)
-        
-        # Оригинальный метод
-        result = process_points(points, "original")
-        print("1. Оригинальный (ближайшая по расстоянию):")
-        for i, p in enumerate(points):
-            closest = find_closest(p, points)
-            if closest:
-                print(f"   {p} + {closest} = {result[i]}")
-                logger.debug(f"Оригинальный: {p} + {closest} = {result[i]}")
-        
-        # Последовательный метод
-        result = process_points(points, "sequential")
-        print("\n2. Последовательный (следующая точка):")
-        for i in range(len(points)):
-            next_idx = (i + 1) % len(points)
-            print(f"   {points[i]} + {points[next_idx]} = {result[i]}")
-            logger.debug(f"Последовательный: {points[i]} + {points[next_idx]} = {result[i]}")
-        
-        # Минимальная сумма
-        result = process_points(points, "min_sum")
-        min_sum_point = min(points, key=lambda p: p[0] + p[1])
-        print(f"\n3. Минимальная сумма координат (x+y):")
-        print(f"   Базовая точка: {min_sum_point}")
-        logger.debug(f"Минимальная сумма: базовая точка {min_sum_point}")
-        for i, p in enumerate(points):
-            print(f"   {p} + {min_sum_point} = {result[i]}")
-            logger.debug(f"Минимальная сумма: {p} + {min_sum_point} = {result[i]}")
-        
-        # Минимальный X
-        result = process_points(points, "min_x")
-        min_x_point = min(points, key=lambda p: p[0])
-        print(f"\n4. Минимальная координата X:")
-        print(f"   Базовая точка: {min_x_point}")
-        logger.debug(f"Минимальный X: базовая точка {min_x_point}")
-        for i, p in enumerate(points):
-            print(f"   {p} + {min_x_point} = {result[i]}")
-            logger.debug(f"Минимальный X: {p} + {min_x_point} = {result[i]}")
-    
-    except PointsProcessorException as e:
-        logger.exception(f"Ошибка при сравнении методов: {e}")
-        print(f"Ошибка при сравнении методов: {e}")
-    except Exception as e:
-        logger.exception(f"Неожиданная ошибка при сравнении методов: {e}")
-        print(f"Неожиданная ошибка: {e}")
-
-
-def manage_logging():
-    """
-    Управление уровнем логирования программы.
-    """
-    log_user_action("Открыто управление логированием")
-    
-    print("\n=== Управление логированием ===")
-    print("1. INFO - логировать все действия")
-    print("2. WARNING - только предупреждения и ошибки")
-    print("3. ERROR - только ошибки")
-    print("4. CRITICAL - только критические ошибки")
-    print("5. Показать текущий уровень")
-    
-    try:
-        choice = input("Ваш выбор (1-5): ").strip()
-        log_user_action(f"Выбор уровня логирования: {choice}")
-        
-        current_level = logging.getLevelName(logger.getEffectiveLevel())
-        
-        if choice == "1":
-            logger.setLevel(logging.INFO)
-            for handler in logger.handlers:
-                handler.setLevel(logging.INFO)
-            print("Установлен уровень INFO - логирование всех действий")
-            logger.info("Уровень логирования изменен на INFO")
-        elif choice == "2":
-            logger.setLevel(logging.WARNING)
-            for handler in logger.handlers:
-                handler.setLevel(logging.WARNING)
-            print("Установлен уровень WARNING - только предупреждения и ошибки")
-            logger.warning("Уровень логирования изменен на WARNING")
-        elif choice == "3":
-            logger.setLevel(logging.ERROR)
-            for handler in logger.handlers:
-                handler.setLevel(logging.ERROR)
-            print("Установлен уровень ERROR - только ошибки")
-            logger.error("Уровень логирования изменен на ERROR")
-        elif choice == "4":
-            logger.setLevel(logging.CRITICAL)
-            for handler in logger.handlers:
-                handler.setLevel(logging.CRITICAL)
-            print("Установлен уровень CRITICAL - только критические ошибки")
-            logger.critical("Уровень логирования изменен на CRITICAL. Логирование практически отключено.")
-        elif choice == "5":
-            print(f"Текущий уровень логирования: {current_level}")
+        if method_name == "original":
+            for i, p in enumerate(points):
+                closest = find_closest(p, points)
+                if closest:
+                    print(f"  {p} + {closest} = {result[i]}")
+        elif method_name == "sequential":
+            for i in range(len(points)):
+                next_idx = (i + 1) % len(points)
+                print(f"  {points[i]} + {points[next_idx]} = {result[i]}")
         else:
-            raise InvalidMenuChoiceException(choice, ["1", "2", "3", "4", "5"])
+            special = min(points, key=lambda p: p[0] + p[1]) if method_name == "min_sum" else min(points, key=lambda p: p[0])
+            for i, p in enumerate(points):
+                print(f"  {p} + {special} = {result[i]}")
+
+
+def manage_logging(logger):
+    """Управление логированием."""
+    print("\n=== Управление логированием ===")
+    for i, option in enumerate(TEXTS["logging_menu"], 1):
+        print(f"{i}. {option}")
     
-    except InvalidMenuChoiceException as e:
-        logger.exception(f"Некорректный выбор уровня логирования: {e}")
-        print(f"Ошибка: {e}")
-    except Exception as e:
-        logger.exception(f"Неожиданная ошибка при управлении логированием: {e}")
-        print(f"Неожиданная ошибка: {e}")
+    choice = input("Выберите: ").strip()
+    
+    levels = {
+        "1": logging.INFO,
+        "2": logging.WARNING,
+        "3": logging.ERROR,
+        "4": logging.CRITICAL
+    }
+    
+    if choice == "5":
+        current = logging.getLevelName(logger.getEffectiveLevel())
+        print(f"Текущий уровень: {current}")
+        return
+    
+    if choice in levels:
+        level = levels[choice]
+        logger.setLevel(level)
+        for handler in logger.handlers:
+            handler.setLevel(level)
+        
+        logger.info(f"Уровень изменен на {logging.getLevelName(level)}")
+        print(f"Установлен уровень: {logging.getLevelName(level)}")
+    else:
+        print("Неверный выбор")
 
 
 def main():
-    """
-    Основная функция программы - точка входа.
-    """
-    log_function_call("main")
+    """Главная функция."""
+    # Настройка логирования
+    logger = setup_logging(logging.INFO)
     
-    print("ПРОЕКТ: Обработка точек")
-    print("Задание: К каждой точке прибавить ближайшую (разные методы)")
-    print("Логирование включено. Логи сохраняются в файл app.log")
+    print("ПРОГРАММА: Обработка точек")
+    print("К каждой точке прибавить ближайшую (разные методы)")
+    print("Логи записываются в app.log")
     
     try:
         while True:
             show_menu()
             choice = input("\nВыберите: ").strip()
             
-            log_user_action(f"Выбор в главном меню: {choice}")
+            logger.info(f"Пользователь выбрал: {choice}")
             
             try:
                 if choice == "1":
-                    test_all()
+                    test_all(logger)
                 
                 elif choice == "2":
-                    log_function_call("input_by_hand")
-                    points = input_by_hand()
-                    if len(points) > 0:
-                        result = process_with_method(points)
+                    points = input_points_manual()
+                    if points:
+                        method = choose_method()
+                        result = process_points(points, method)
+                        
                         print("\nРезультат:")
                         for i in range(len(points)):
                             print(f"  {points[i]} -> {result[i]}")
                         logger.info(f"Обработано {len(points)} точек")
-                    else:
-                        print("Точки не введены")
                 
                 elif choice == "3":
                     try:
-                        n_input = input("Сколько точек? ") or "5"
-                        n = int(n_input)
-                        
-                        if n <= 0:
-                            print("Количество точек должно быть положительным числом")
-                            logger.warning(f"Попытка создать {n} точек")
-                            continue
-                        
-                        log_user_action(f"Создание {n} случайных точек")
-                        log_function_call("make_random_points", n=n)
+                        n = int(input("Сколько точек? ") or "5")
                         points = make_random_points(n)
-                        result = process_with_method(points)
+                        method = choose_method()
+                        result = process_points(points, method)
+                        
                         print("\nРезультат:")
                         for i in range(len(points)):
                             print(f"  {points[i]} -> {result[i]}")
                         logger.info(f"Обработано {n} случайных точек")
-                    
-                    except ValueError as e:
-                        print("Ошибка! Используйте целое число.")
-                        logger.exception(f"Ошибка при вводе количества точек: {e}")
+                    except ValueError:
+                        print("Ошибка! Нужно число.")
+                        logger.error("Неверный ввод количества точек")
                 
                 elif choice == "4":
-                    compare_methods()
+                    compare_methods(logger)
                 
                 elif choice == "5":
-                    manage_logging()
+                    manage_logging(logger)
                 
                 elif choice == "6":
-                    log_user_action("Выход из программы")
-                    print("\nВыход из программы. До свидания!")
+                    print("\nВыход из программы. Пока!")
                     logger.info("Программа завершена")
                     break
                 
                 else:
-                    raise InvalidMenuChoiceException(choice, ["1", "2", "3", "4", "5", "6"])
+                    print("Неверный выбор. Попробуйте снова.")
+                    logger.warning(f"Неверный выбор: {choice}")
             
-            except InvalidMenuChoiceException as e:
-                logger.exception(f"Некорректный выбор в меню: {e}")
+            except (InputError, ProcessingError) as e:
                 print(f"Ошибка: {e}")
-            except EmptyPointsListException as e:
-                logger.exception(f"Пустой список точек: {e}")
-                print(f"Ошибка: {e}")
-            except PointsProcessorException as e:
-                logger.exception(f"Ошибка обработки: {e}")
-                print(f"Ошибка: {e}")
+                logger.error(f"Ошибка: {e}")
             except Exception as e:
-                logger.exception(f"Неожиданная ошибка: {e}")
                 print(f"Неожиданная ошибка: {e}")
+                logger.exception(f"Неожиданная ошибка: {e}")
     
     except KeyboardInterrupt:
-        print("\n\nПрограмма прервана пользователем")
-        logger.info("Программа прервана пользователем (Ctrl+C)")
+        print("\n\nПрограмма прервана")
+        logger.info("Программа прервана пользователем")
     except Exception as e:
-        logger.exception(f"Критическая ошибка: {e}")
         print(f"Критическая ошибка: {e}")
-        sys.exit(1)
+        logger.exception(f"Критическая ошибка: {e}")
 
 
 if __name__ == "__main__":
