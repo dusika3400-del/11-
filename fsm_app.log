@@ -1,0 +1,17 @@
+14:52:28 - INFO - Автомат запущен. Начальное состояние: AppState.INITIAL
+14:52:28 - INFO - Запуск основного цикла автомата
+14:52:28 - INFO - Переход: AppState.INITIAL + 'None'
+14:52:28 - INFO - Найден переход: AppState.INITIAL -> AppState.MAIN_MENU
+14:52:28 - INFO - Успешный переход в состояние: AppState.MAIN_MENU
+14:52:57 - INFO - Переход: AppState.MAIN_MENU + '1'
+14:52:57 - INFO - Найден переход: AppState.MAIN_MENU -> AppState.TEST_FUNCTIONS
+14:52:57 - INFO - Запуск тестирования функций
+14:53:05 - INFO - Успешный переход в состояние: AppState.TEST_FUNCTIONS
+14:57:43 - INFO - Автомат запущен. Начальное состояние: AppState.INITIAL
+14:57:43 - INFO - Запуск основного цикла автомата
+14:57:43 - INFO - Переход: AppState.INITIAL + 'None'
+14:57:43 - INFO - Найден переход: AppState.INITIAL -> AppState.MAIN_MENU
+14:57:43 - INFO - Успешный переход в состояние: AppState.MAIN_MENU
+14:57:49 - INFO - Переход: AppState.MAIN_MENU + '4'
+14:57:49 - INFO - Найден переход: AppState.MAIN_MENU -> AppState.COMPARE_METHODS
+14:58:00 - INFO - Успешный переход в состояние: AppState.COMPARE_METHODS
