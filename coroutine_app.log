@@ -1,0 +1,4 @@
+17:23:54 - INFO - Тестирование функций завершено
+17:24:20 - ERROR - Ошибка в ручном вводе: 'CoroutineFSM' object has no attribute 'context'
+17:24:27 - INFO - Тестирование функций завершено
+17:24:57 - ERROR - Ошибка в ручном вводе: 'CoroutineFSM' object has no attribute 'context'
